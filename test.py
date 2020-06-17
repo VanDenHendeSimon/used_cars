@@ -24,6 +24,7 @@ def get_text(url):
 
 def get_json(url):
     try:
+        print("trying to get data on url %s" % url)
         return requests.get(url).json()
     except Exception as ex:
         return {"exception": ex}
@@ -98,65 +99,77 @@ def get_listing_details(listing_details_url):
 
 
 def main():
-    initial_data = get_json(
-        'https://www.2dehands.be/lrp/api/search?attributeRanges[]=constructionYear%3A2000%3Anull&attributesById[]=10882&l1CategoryId=91&limit=100&offset=0&viewOptions=gallery-view'
-    )
+    steps = 100
+    iteration = 0
+    results_remaining = 999999
 
-    if "exception" not in initial_data.keys():
-        if not initial_data['hasErrors']:
-            for listing in initial_data['listings']:
-                # print_listing(listing)
+    while results_remaining > 0:
+        print("iteration: %d" % (iteration + 1))
+        data = get_json(
+            f'https://www.2dehands.be/lrp/api/search?attributeRanges[]=PriceCents%3A100000%3Anull&attributeRanges[]=constructionYear%3A2000%3Anull&attributesByKey[]=offeredSince%3AEen%20week&l1CategoryId=91&limit={steps}&offset={steps * iteration}&viewOptions=gallery-view'
+        )
 
-                img_url = ''
-                for img in listing['imageUrls']:
-                    # replacing by 86 makes the image high res
-                    img_url = "https:%s" % img.replace("$_82", "$_86")
-                    # download_image(img_url, os.path.join(os.path.curdir, '%s.jpeg' % listing['itemId']))
+        if "exception" not in data.keys():
+            if not data.get('hasErrors', True):
+                iteration += 1
+                if results_remaining == 999999:
+                    results_remaining = int(data['totalResultCount']) - (steps * iteration)
 
-                mileage = None
-                construction_year = None
-                carpass_url = None
-                for attribute in listing['attributes']:
-                    if attribute['key'] == 'carPassUrl':
-                        carpass_url = attribute['value']
-                    elif attribute['key'] == 'mileage':
-                        mileage = attribute['value']
-                    elif attribute['key'] == 'constructionYear':
-                        construction_year = attribute['value']
+                for listing in data['listings']:
+                    # Check if the listing exists
+                    if len(DataRepository.get_listing(listing['itemId'])) > 0:
+                        continue
 
-                listing_details = get_listing_details("https://www.2dehands.be%s" % listing['vipUrl'])
-                time.sleep(0.05)
+                    img_url = ''
+                    for img in listing['imageUrls']:
+                        # replacing by 86 makes the image high res
+                        img_url = "https:%s" % img.replace("$_82", "$_86")
+                        # download_image(img_url, os.path.join(os.path.curdir, '%s.jpeg' % listing['itemId']))
 
-                if 'description' not in listing.keys():
-                    listing['description'] = None
+                    mileage = None
+                    construction_year = None
+                    carpass_url = None
+                    for attribute in listing['attributes']:
+                        if attribute['key'] == 'carPassUrl':
+                            carpass_url = attribute['value']
+                        elif attribute['key'] == 'mileage':
+                            mileage = attribute['value']
+                        elif attribute['key'] == 'constructionYear':
+                            construction_year = attribute['value']
 
-                try:
-                    DataRepository.create_listing(
-                        _id=listing['itemId'],
-                        titel=listing['title'],
-                        beschrijving=listing['description'],
-                        stad=listing['location']['cityName'],
-                        prijs=int(listing['priceInfo']['priceCents']) * 0.01,
-                        km_stand=int(mileage),
-                        bouwjaar=int(construction_year),
-                        carpass_url=carpass_url,
-                        details_url="https://www.2dehands.be%s" % listing['vipUrl'],
-                        image_url=img_url,
-                        transmissie=listing_details['Transmissie'],
-                        adverteerder=listing_details['Adverteerder'],
-                        brandstof=listing_details['Brandstof'],
-                        merk=listing_details['make'],
-                        model=listing_details['model'],
-                        euronorm=listing_details['Euronorm'],
-                        motor_inhoud=listing_details['Motorinhoud'],
-                        carrosserie=listing_details['Carrosserie'],
-                    )
+                    listing_details = get_listing_details("https://www.2dehands.be%s" % listing['vipUrl'])
+                    time.sleep(0.05)
 
-                except Exception as ex:
-                    print("Error: %s" % ex)
-                    print(listing_details)
-                    print('\n')
-                    continue
+                    if 'description' not in listing.keys():
+                        listing['description'] = None
+
+                    try:
+                        DataRepository.create_listing(
+                            _id=listing['itemId'],
+                            titel=listing['title'],
+                            beschrijving=listing['description'],
+                            stad=listing['location']['cityName'],
+                            prijs=int(listing['priceInfo']['priceCents']) * 0.01,
+                            km_stand=int(mileage),
+                            bouwjaar=int(construction_year),
+                            carpass_url=carpass_url,
+                            details_url="https://www.2dehands.be%s" % listing['vipUrl'],
+                            image_url=img_url,
+                            transmissie=listing_details['Transmissie'],
+                            adverteerder=listing_details['Adverteerder'],
+                            brandstof=listing_details['Brandstof'],
+                            merk=listing_details['make'],
+                            model=listing_details['model'],
+                            euronorm=listing_details['Euronorm'],
+                            motor_inhoud=listing_details['Motorinhoud'],
+                            carrosserie=listing_details['Carrosserie'],
+                        )
+
+                    except Exception as ex:
+                        print("Error: %s" % ex)
+                        print(listing_details)
+                        print('\n')
+                        continue
 
 
 if __name__ == '__main__':
