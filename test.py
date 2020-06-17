@@ -45,6 +45,7 @@ def get_listing_details(listing_details_url):
     data_layer = scripts[0]
     car_info = next(str(script).strip().replace('\n', '') for script in scripts if 'car:' in script)
 
+    # Focus op motorinhoud, brandstof, transmissie, adverteerder
     print(data_layer)
     print(car_info)
 
